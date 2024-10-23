@@ -1,0 +1,44 @@
+# First stage: Use GDAL alpine image to install ogr2ogr and dependencies
+FROM osgeo/gdal:alpine-small-3.6.3 AS gdal-stage
+
+# Set working directory
+WORKDIR /usr/src/gdal
+
+# Copy ogr2ogr and required shared libraries to /gdal-bin directory
+RUN mkdir /gdal-bin /gdal-lib \
+    && cp /usr/bin/ogr2ogr /gdal-bin/ \
+    && cp /usr/lib/libgdal.so* /gdal-lib/ \
+    && for lib in $(ldd /usr/bin/ogr2ogr | tr -s ' ' | cut -d ' ' -f 3 | grep -v '('); do cp "$lib" /gdal-lib/; done
+
+# Second stage: Use a lightweight Node.js alpine image
+FROM node:20-alpine AS node-stage
+
+# Set working directory
+WORKDIR /usr/src/app
+
+# Copy Node.js package files and install dependencies
+COPY package*.json ./
+RUN npm install --production
+
+# Copy the rest of the application code
+COPY . .
+
+# Copy ogr2ogr and its required libraries from the gdal-stage
+COPY --from=gdal-stage /gdal-bin/ /usr/local/bin/
+COPY --from=gdal-stage /gdal-lib/ /usr/local/lib/
+
+
+# Create the data directory
+RUN mkdir -p ./shapefiles
+
+# Ensure the libraries can be found by the linker
+ENV LD_LIBRARY_PATH="/usr/local/lib"
+
+# Set environment variable to point to ogr2ogr
+ENV OGR2OGRCMD="/usr/local/bin/ogr2ogr"
+
+# Expose the port that your application will run on
+EXPOSE 3000
+
+# Start the application
+CMD ["node", "test.js"]
