@@ -29,7 +29,7 @@ COPY --from=gdal-stage /gdal-lib/ /usr/local/lib/
 
 
 # Create the data directory
-RUN mkdir -p ./shapefiles
+#RUN mkdir -p ./shapefiles
 
 # Ensure the libraries can be found by the linker
 ENV LD_LIBRARY_PATH="/usr/local/lib"
@@ -39,6 +39,15 @@ ENV OGR2OGRCMD="/usr/local/bin/ogr2ogr"
 
 # Expose the port that your application will run on
 EXPOSE 3000
+
+# Create a non-root user with UID 1234 and switch to this user
+RUN adduser -D -u 1234  minesgisuser
+
+# Change ownership of the application files to the new user
+RUN chown -R minesgisuser:minesgisuser /usr/src/app
+
+# Switch to the new non-root user
+USER minesgisuser
 
 # Start the application
 CMD ["node", "test.js"]
